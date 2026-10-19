@@ -1,0 +1,84 @@
+spring:
+  application:
+    name: payments-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/payments_db
+    username: payments_user
+    password: payments_password
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,info,circuitbreakers,retryevents
+  endpoint:
+    health:
+      show-details: always
+  health:
+    circuitbreakers:
+      enabled: true
+    retry:
+      enabled: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        registerHealthIndicator: true
+        slidingWindowType: COUNT_BASED
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+        recordExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - com.pragma.payments.infrastructure.exception.PaymentProviderException
+    instances:
+      paymentProvider:
+        baseConfig: default
+  retry:
+    configs:
+      default:
+        maxAttempts: 3
+        waitDuration: 1s
+        enableExponentialBackoff: true
+        exponentialBackoffMultiplier: 2
+        retryExceptions:
+          - org.springframework.web.client.HttpServerErrorException
+          - java.io.IOException
+          - java.util.concurrent.TimeoutException
+          - com.pragma.payments.infrastructure.exception.PaymentProviderException
+    instances:
+      paymentProvider:
+        baseConfig: default
+  bulkhead:
+    configs:
+      default:
+        maxConcurrentCalls: 20
+        maxWaitDuration: 10ms
+    instances:
+      paymentProvider:
+        baseConfig: default
+  thread-pool-bulkhead:
+    configs:
+      default:
+        maxThreadPoolSize: 4
+        coreThreadPoolSize: 2
+        queueCapacity: 10
+    instances:
+      paymentProvider:
+        baseConfig: default
